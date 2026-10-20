@@ -10,7 +10,8 @@ from test_estimate_service import FakeGeocoder, FakeRouter
 
 
 def run(settings, inputs, *, geo=None, router=None, repository=None):
-    iterator = iter(inputs)
+    # 入力が尽きたら算出後メニューを「0. 終了」で閉じる（最大3回まで。無限ループ防止）
+    iterator = iter(list(inputs) + ["0"] * 3)
     output = []
     geo = geo or FakeGeocoder()
     router = router or FakeRouter()
@@ -26,7 +27,7 @@ def test_acceptance_customer_and_correct_people(settings):
     code, text, geo, router = run(settings, ["1", "1", "山田", "9", "2", "", "2", "3", "3", "1"])
     assert code == 0
     assert "移動人件費：18,000円" in text
-    assert "燃料費：未計算" in text and "合計額：未確定" in text
+    assert "② ガソリン代：未計算" in text and "合計：未確定" in text
     assert "有限会社山田" in text
     assert geo.calls == [settings.company.address, "大阪府B1-2-3"]
     assert len(router.calls) == 1
@@ -91,7 +92,7 @@ def test_interrupt_before_estimate(settings, exc):
 def test_config_default_and_fuel_total(settings):
     settings = replace(settings, labor=replace(settings.labor, default_people=3), vehicle=replace(settings.vehicle, fuel_price_yen_per_liter=D(170)))
     code, text, _, _ = run(settings, ["1", "2", "住所", "", "1"])
-    assert code == 0 and "人員数：3人" in text and "合計額：20,040円" in text
+    assert code == 0 and "人員数：3人" in text and "② ガソリン代：2,040円" in text and "確定分 20,040円" in text
 
 
 def test_geocoding_transport_retry_keeps_inputs(settings):
@@ -116,3 +117,24 @@ def test_town_point_fallback_is_shown(fallback_settings):
     assert code == 0 and len(router.calls) == 1
     assert "[住所精度] From・Toは番地が見つからないため" in text
     assert "住所精度：BLOCK_OR_TOWN（丁目・町字の代表点）" in text
+
+
+
+def test_change_fuel_price_and_toll_after_calculation(settings):
+    # 計算後: 1→ガソリン単価170、2→高速1台1,500円、0→終了
+    code, text, _, router = run(settings, ["1", "2", "住所", "", "1", "1", "170", "2", "1,500", "0"])
+    assert code == 0 and len(router.calls) == 1  # 変更しても経路は再計算しない
+    final = text.split("最終算出結果")[-1]
+    assert "① 移動人件費：12,000円" in final
+    assert "② ガソリン代：2,040円" in final and "12 L × 170円/L" in text.replace("12.00 L", "12 L")
+    assert "③ 高速料金：1,500円" in final and "手入力 1台1,500円 × 1台" in final
+    assert "合計：15,540円（① + ② + ③）" in final
+
+
+def test_no_highway_by_manual_zero_and_invalid_amount(settings):
+    code, text, _, _ = run(settings, ["1", "2", "住所", "", "1", "2", "-5", "abc", "0", "1", "", "0"])
+    assert code == 0
+    assert "0以上の整数を入力してください" in text
+    final = text.split("最終算出結果")[-1]
+    assert "③ 高速料金：0円" in final and "高速を使わない" in final
+    assert "合計：未確定（確定分 12,000円 / 未確定：②ガソリン代）" in final

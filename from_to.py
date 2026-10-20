@@ -1,10 +1,11 @@
 """CUIエントリーポイント。料金計算とHTTPはroute_estimator側へ委譲する。"""
 import argparse
 from dataclasses import replace
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 import sys
 import re
+import unicodedata
 from datetime import datetime
 
 ROOT = Path(__file__).resolve().parent
@@ -17,6 +18,7 @@ from route_estimator.errors import EstimatorError, GeocodingNotPreciseError, Geo
 from route_estimator.estimate_service import estimate_trip
 from route_estimator.models import Location, TripRequest, japan_coordinates
 from route_estimator.errors import ValidationError
+from route_estimator.pricing import calculate_fuel_cost_optional
 from route_estimator.scheduling import JST, default_departure, departure_label
 from route_estimator.highway_service import HighwayService
 from route_estimator.highway_cui import show_highways, toll_flow
@@ -187,40 +189,27 @@ def _confirm(request, settings, write):
     write(f"燃費：{settings.vehicle.fuel_efficiency_km_per_liter}km/L（1台あたり） / 車両：{settings.vehicle.count}台")
     price = settings.vehicle.fuel_price_yen_per_liter
     write("燃料単価：未設定" if price is None else f"燃料単価：{price}円/L")
-    write("通行料金：ETC2.0参考額を別途確認（移動費の合計には未反映）")
+    write("高速料金：計算後にETC2.0参考額を検索（手入力・変更も可）")
     if price is None:
-        write("[要設定] 燃料単価が未設定のため、燃料費・合計額は確定しません。")
+        write("※ ガソリン単価が未設定です。計算後の画面で入力できます。")
     write("\n1. この内容で計算\n2. 内容を修正\n")
 
 
+def _duration_label(duration_s):
+    minutes = int((duration_s / Decimal(60)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    return f"{minutes // 60}時間{minutes % 60:02d}分"
+
+
 def _result(result, write):
+    """経路・IC・地点・条件の詳細。金額は最後の「最終算出結果」にまとめて表示する。"""
     distance = (result.distance_m / Decimal(1000)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-    minutes = int((result.duration_s / Decimal(60)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-    liters = result.fuel_liters.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    _section("ルート・移動費 / 片道", write)
-    write("【移動費の試算】")
-    if result.total_cost_yen is None:
-        write("合計額：未確定")
-        write("[要設定] 燃料単価が未設定のため、燃料費を算出できません。")
-        write(f"算出済みの移動人件費：{result.labor_cost_yen:,}円")
-    else:
-        write(f"合計額：{result.total_cost_yen:,}円")
-    write("対象：移動人件費 + 燃料費（現場作業・通行料金・税は対象外）")
-    write("")
+    _section("ルート / 片道", write)
     write(f"距離：{distance} km")
-    write(f"推定移動時間：{minutes // 60}時間{minutes % 60:02d}分")
+    write(f"推定移動時間：{_duration_label(result.duration_s)}")
     approx = [name for name, geo in (("From", result.origin_geocode), ("To", result.destination_geocode)) if str(geo.precision) == 'BLOCK_OR_TOWN']
     if approx:
         write(f"[住所精度] {'・'.join(approx)}は番地が見つからないため、丁目・町字の代表点で計算しています。")
     show_highways(result, write)
-    _section("費用内訳", write)
-    write(f"移動人件費：{result.labor_cost_yen:,}円")
-    if result.fuel_cost_yen_or_none is None:
-        write("燃料費：未計算（円/L単価が未設定）")
-    else:
-        write(f"燃料費：{result.fuel_cost_yen_or_none:,}円")
-    write("通行料金：合計未反映（ETC2.0参考額は別枠）")
-    write(f"燃料消費量：{liters} L（車両{result.vehicle_count}台の合計）")
     _section("出発地 → 到着地", write)
     _place("From", result.origin, write)
     write("")
@@ -248,6 +237,110 @@ def _result(result, write):
     if result.routing_metadata.get('provider')=='geoapify':
         write("経路出典："+result.routing_metadata['attribution'])
     write("出典：© OpenStreetMap contributors（ODbL） / Geolonia 日本住所データv2（CC BY 4.0、原典：デジタル庁）")
+
+
+# ---- 最終算出結果（人件費・ガソリン代・高速料金を別々に算出し、算出後に変更可能） ----
+
+def _toll_from_search(result, selections):
+    """ETC2.0検索の結果から高速料金（全車両分）を決める。未確定ならyen=None。"""
+    info = result.highway_information
+    if info.get('status') == 'available' and not info.get('sections'):
+        return {'yen': Decimal(0), 'label': '高速・有料道路の利用なし', 'details': []}
+    if info.get('status') != 'available':
+        return {'yen': None, 'label': '経路から高速区間を判定できないため未取得', 'details': []}
+    details = []
+    for s in selections:
+        if s['yen'] is None:
+            details.append(f"区間{s['section']}：未取得（保留）")
+        else:
+            ic = '（IC修正）' if s.get('manual_ic') else ''
+            details.append(f"区間{s['section']}：{s['from']} → {s['to']}{ic} ルート{s['route']} / {s['yen']:,}円")
+    if not selections or any(s['yen'] is None for s in selections) or len(selections) < len(info['sections']):
+        return {'yen': None, 'label': '未取得の区間があります', 'details': details}
+    per_vehicle = sum(Decimal(s['yen']) for s in selections)
+    return {'yen': per_vehicle * result.vehicle_count, 'per_vehicle': per_vehicle,
+            'label': f"ETC2.0参考額 1台{per_vehicle:,}円 × {result.vehicle_count}台", 'details': details}
+
+
+def _final(result, fuel_price, toll, write):
+    liters = result.fuel_liters.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    distance = (result.distance_m / Decimal(1000)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    fuel = calculate_fuel_cost_optional(result.fuel_liters, fuel_price)
+    _section("最終算出結果 / 片道", write)
+    write(f"{result.origin.label} → {result.destination.label}")
+    write(f"距離 {distance} km / 推定移動時間 {_duration_label(result.duration_s)} / {result.people}人・車両{result.vehicle_count}台")
+    write("")
+    write(f"① 移動人件費：{result.labor_cost_yen:,}円")
+    write(f"     {result.people}人 × {result.hourly_rate:,}円/h × {_duration_label(result.duration_s)}")
+    if fuel is None:
+        write("② ガソリン代：未計算（ガソリン単価が未設定 → 下の 1 で入力）")
+        write(f"     使用量 {liters} L（燃費 {result.efficiency}km/L・{result.vehicle_count}台分）")
+    else:
+        write(f"② ガソリン代：{fuel:,}円")
+        write(f"     {liters} L × {fuel_price}円/L（燃費 {result.efficiency}km/L・{result.vehicle_count}台分）")
+    if toll['yen'] is None:
+        write(f"③ 高速料金：未取得（{toll['label']} → 下の 2 か 3 で設定）")
+    else:
+        write(f"③ 高速料金：{toll['yen']:,}円")
+        write(f"     {toll['label']}")
+    for line in toll.get('details', []):
+        write(f"     ・{line}")
+    write("─" * 40)
+    parts = [result.labor_cost_yen, fuel, toll['yen']]
+    known = sum(v for v in parts if v is not None)
+    if all(v is not None for v in parts):
+        write(f"合計：{known:,}円（① + ② + ③）")
+    else:
+        missing = '・'.join(name for name, v in (('②ガソリン代', fuel), ('③高速料金', toll['yen'])) if v is None)
+        write(f"合計：未確定（確定分 {known:,}円 / 未確定：{missing}）")
+    write("※ 現場作業費・税は含みません。高速料金はNEXCOのETC2.0参考額（Geoapifyの経路と完全一致するとは限りません）。")
+
+
+def _ask_amount(prompt, read, write, *, integer=False, maximum=Decimal(10_000_000)):
+    """Enterのみで変更しない（None）。0以上の数値を返す。"""
+    while True:
+        value = unicodedata.normalize("NFKC", read(prompt)).strip().replace(",", "")
+        if not value: return None
+        try:
+            amount = Decimal(value)
+            if amount.is_finite() and Decimal(0) <= amount <= maximum and (not integer or amount == amount.to_integral_value()):
+                return amount
+        except (InvalidOperation, ValueError):
+            pass
+        write("0以上の" + ("整数" if integer else "数値") + "を入力してください（Enterで変更しない）。")
+
+
+def _adjust(result, settings, selections, highway_service, read, write):
+    fuel_price = settings.vehicle.fuel_price_yen_per_liter
+    toll = _toll_from_search(result, selections)
+    can_search = highway_service is not None and result.highway_information.get('status') == 'available' and bool(result.highway_information.get('sections'))
+    while True:
+        _final(result, fuel_price, toll, write)
+        write("\n[算出後の変更]")
+        write(f"1. ガソリン単価を変更（現在：{'未設定' if fuel_price is None else f'{fuel_price}円/L'}）")
+        write("2. 高速料金を手入力（1台あたりの金額。0 = 高速を使わない）")
+        choices = {"0", "1", "2"}
+        if can_search:
+            write("3. 高速のIC・ルートを選び直して再検索")
+            choices.add("3")
+        write("0. 終了")
+        choice = _choose("選択 > ", choices, read, write)
+        if choice == "0":
+            return
+        if choice == "1":
+            value = _ask_amount("ガソリン単価 円/L（Enterで変更しない） > ", read, write, maximum=Decimal(1000))
+            if value is not None:
+                fuel_price = value
+                write("※ この計算だけに反映します。毎回使う場合は config.json の vehicle.fuel_price_yen_per_liter に設定してください。")
+        elif choice == "2":
+            value = _ask_amount("高速料金 1台あたり 円（Enterで変更しない） > ", read, write, integer=True)
+            if value is not None:
+                toll = {'yen': value * result.vehicle_count, 'per_vehicle': value,
+                        'label': '高速を使わない' if value == 0 else f"手入力 1台{value:,}円 × {result.vehicle_count}台", 'details': []}
+        else:
+            result.toll_results.clear()
+            selections = toll_flow(result, highway_service, read, write)
+            toll = _toll_from_search(result, selections)
 
 
 def run_cli(*, settings, repository, geocoder, router, read=None, write=None, highway_service=None):
@@ -286,8 +379,8 @@ def run_cli(*, settings, repository, geocoder, router, read=None, write=None, hi
                     request = replace(request, **{name: edited})
                 continue
             _result(result, write)
-            if highway_service is not None:
-                toll_flow(result, highway_service, read, write)
+            selections = toll_flow(result, highway_service, read, write) if highway_service is not None else []
+            _adjust(result, settings, selections, highway_service, read, write)
             return 0
     except (KeyboardInterrupt, EOFError):
         write("\n中断しました（見積未確定）。")

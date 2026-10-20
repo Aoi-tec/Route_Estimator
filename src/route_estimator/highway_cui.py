@@ -80,12 +80,27 @@ def _vehicle(read,write):
         write('1〜5を選択してください。')
 
 
+def _pick_route(found, read, write):
+    if len(found.routes)<=1:return found.routes[0] if found.routes else None
+    numbers={str(route.number):route for route in found.routes}
+    while True:
+        value=read(f'採用するルート番号（Enterで{found.routes[0].number}） > ').strip() or str(found.routes[0].number)
+        if value in numbers:return numbers[value]
+        write('表示されたルート番号を入力してください。')
+
+
 def toll_flow(result, service, read, write):
+    """区間ごとにICを確認してETC2.0参考額を検索する。
+
+    戻り値: 区間ごとの採用結果 [{'section','from','to','route','yen'}]。保留・失敗はyen=None。
+    """
     info=result.highway_information
-    if info.get('status')!='available' or not info.get('sections'):return
-    write('\n【ETC2.0参考額の確認】通常ETC・現金への代用はしません。移動費合計には加算しません。')
+    selections=[]
+    if info.get('status')!='available' or not info.get('sections'):return selections
+    write('\n【高速料金（ETC2.0参考額）の確認】通常ETC・現金への代用はしません。')
     vehicle=None
     for section in info['sections']:
+        held={'section':section['number'],'from':None,'to':None,'route':None,'yen':None}
         a=_suggestion(section.get('entry',{}));b=_suggestion(section.get('exit',{}))
         manually_selected=False
         while True:
@@ -94,25 +109,25 @@ def toll_flow(result, service, read, write):
                 write('※ 修正ICへの経路は未再計算。検索時刻は元経路の接続点到達予定を使う参考検索です。')
             write('1. このICで参考料金を検索 / 2. ICを選択・修正 / 0. この区間を保留')
             choice=read('選択 > ').strip()
-            if choice=='0':break
+            if choice=='0':selections.append(held);break
             if choice not in ('1','2'):continue
             try:
                 if choice=='2' or a is None:
                     manually_selected=True
                     a=_pick_ic(service.tolls.master,section.get('entry',{}),'入口',read,write)
-                    if a is None:break
+                    if a is None:selections.append(held);break
                 if choice=='2' or b is None:
                     manually_selected=True
                     b=_pick_ic(service.tolls.master,section.get('exit',{}),'出口',read,write)
-                    if b is None:break
+                    if b is None:selections.append(held);break
                 if choice=='2':continue
                 if not section.get('entry_departure_at'):
-                    write('入口到達時刻が未確定のため料金検索を保留しました。');break
+                    write('入口到達時刻が未確定のため料金検索を保留しました。');selections.append(held);break
                 vehicle=vehicle or _vehicle(read,write)
                 departure=datetime.fromisoformat(section['entry_departure_at'])
                 write('NEXCO検索中…')
                 found=service.tolls.search(a['code'],b['code'],vehicle_type=vehicle,departure_at=departure)
-                write(f'\n[区間{section["number"]} / ETC2.0参考額・合計未反映]')
+                write(f'\n[区間{section["number"]} / ETC2.0参考額]')
                 write(f'入口：{_clean(found.from_ic_name)} → 出口：{_clean(found.to_ic_name)} / {found.vehicle_type} / 1台あたり')
                 write('NEXCO検索日時：'+departure_label(datetime.fromisoformat(found.searched_departure_at)))
                 for route in found.routes:
@@ -127,10 +142,15 @@ def toll_flow(result, service, read, write):
                 write('※ 表示地点は公式詳細の掲載地点です。物理的に通過する全ICの列挙ではありません。')
                 write('取得日時：'+found.retrieved_at.astimezone(departure.tzinfo).isoformat())
                 write('料金出典：'+found.source_url)
-                # CUIの一連の結果を呼出元からも参照可能にする。金額の合計は変更しない。
                 result.toll_results.append(found)
+                chosen=_pick_route(found,read,write)
+                selections.append({'section':section['number'],'from':_clean(found.from_ic_name),'to':_clean(found.to_ic_name),
+                                   'route':chosen.number if chosen else None,'yen':chosen.etc2_yen if chosen else None,
+                                   'manual_ic':manually_selected})
                 break
             except (TollError,OSError,UnicodeError) as exc:
                 if isinstance(exc,TollError):write(_clean(exc))
                 write('ICまたはETC2.0料金を取得できませんでした。この区間の料金は保留です（0円ではありません）。')
+                selections.append(held)
                 break
+    return selections

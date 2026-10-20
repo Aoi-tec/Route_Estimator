@@ -120,13 +120,13 @@ def test_full_cui_ic_confirmation_and_etc_reference(settings):
                 RouteOption(1,960,D('18.7'),20,['西名阪自動車道'],[RouteStop('入口','IC',a),RouteStop('出口','IC',b)],[],True)],
                 datetime(2026,10,20,12,tzinfo=JST),'2026-10-21T09:02:00+09:00','https://search.w-nexco.co.jp/','v155')
     service=SimpleNamespace(enrich=lambda result:result,tolls=Tolls())
-    inputs=iter(['1','2','住所','','1','1','3'])
+    inputs=iter(['1','2','住所','','1','1','3','0'])
     lines=[]
     status=from_to.run_cli(settings=settings,repository=CustomerRepository([]),geocoder=FakeGeocoder(),router=Router(),
         highway_service=service,read=lambda _:next(inputs),write=lines.append)
     text='\n'.join(lines)
     assert status==0 and '入口IC候補：入口' in text and '出口IC候補：出口' in text
-    assert 'ETC2.0 960円' in text and '合計未反映' in text
+    assert 'ETC2.0 960円' in text and '③ 高速料金：960円' in text
     assert calls[0][0:2]==('1000001','1000002')
     assert calls[0][2]['vehicle_type']=='中型車' and calls[0][2]['departure_at'].hour==9
     assert 'NEXCO検索日時：2026-10-21（水）09:02' in text
@@ -173,3 +173,41 @@ def test_json_includes_toll_dataclasses_without_adding_to_total(settings):
     data=json.loads(json.dumps(result.to_dict()))
     assert data['toll_results'][0]['routes'][0]['etc2_yen']==960
     assert data['toll_results'][0]['reference_only'] and data['total_cost_yen'] is None
+
+
+
+def test_toll_total_after_ic_change_and_route_choice(settings):
+    import from_to
+    from route_estimator.customer_repository import CustomerRepository
+    from route_estimator.models import RouteResult
+    from nexco_toll.models import TollSearchResult, RouteOption, RouteStop
+    cand={'name':'入口','code':'1000001','road':'西名阪自動車道','prefecture':'大阪府','route_distance_m':5.0}
+    other={'name':'別出口','code':'1000003','road':'西名阪自動車道','prefecture':'大阪府','note':''}
+    info=extract_highway_details(properties(),POINTS)
+    info['sections'][0].update(entry={'suggested_code':'1000001','candidates':[cand]},
+        exit={'suggested_code':'1000002','candidates':[{**cand,'name':'出口','code':'1000002'}]},entry_departure_at='2026-10-21T09:02:00+09:00')
+    class Router:
+        def route(self,a,b):return RouteResult(D(10000),D(600),(D(0),D(0)),{'provider':'geoapify','attribution':'test','highway_details':info})
+    class Master:
+        def candidates(self,q):return [IC('別出口','1000003','大阪府','西名阪自動車道')] if q=='別出口' else []
+    class Tolls:
+        master=Master()
+        def search(self,a,b,**kwargs):
+            yen={'1000002':960,'1000003':1200}[b]
+            return TollSearchResult('入口',a,'出口X',b,kwargs['vehicle_type'],[
+                RouteOption(1,yen,D('18.7'),20,['西名阪'],[RouteStop('入口','IC',a)],[],True),
+                RouteOption(2,yen+300,D('25'),25,['別道'],[RouteStop('入口','IC',a)],[],True)],
+                datetime(2026,10,20,12,tzinfo=JST),'2026-10-21T09:02:00+09:00','https://search.w-nexco.co.jp/','v155')
+    service=SimpleNamespace(enrich=lambda r:r,tolls=Tolls())
+    s=replace(settings,vehicle=replace(settings.vehicle,count=2,fuel_price_yen_per_liter=D(170)))
+    # 1回目: 候補ICで検索→普通車→ルート1。算出後 3: 再検索→2:IC修正→入口1→出口「別出口」→1→1:検索→普通車→ルート2。0:終了
+    inputs=iter(['1','2','住所','','1', '1','1','',  '3','2','1','別出口','1','1','1','2', '0'])
+    lines=[]
+    status=from_to.run_cli(settings=s,repository=CustomerRepository([]),geocoder=FakeGeocoder(),router=Router(),
+        highway_service=service,read=lambda _:next(inputs),write=lines.append)
+    text='\n'.join(lines)
+    assert status==0
+    first,second=text.split('最終算出結果')[1:3]
+    assert '③ 高速料金：1,920円' in first and '1台960円 × 2台' in first
+    assert '③ 高速料金：3,000円' in second and '1台1,500円 × 2台' in second and '（IC修正）' in second
+    assert '合計：' in second and '未確定' not in second.split('[算出後の変更]')[0]
