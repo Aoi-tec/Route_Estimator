@@ -21,7 +21,7 @@ class OsrmClient:
         self.max_snap_distance_m = decimal_value(max_snap_distance_m, "スナップ距離上限")
         self.http = HttpTransport(client, timeout=timeout, max_bytes=1_000_000)
 
-    def route(self, origin: Coordinates, destination: Coordinates) -> RouteResult:
+    def route(self, origin: Coordinates, destination: Coordinates, *, snap_limits_m=None) -> RouteResult:
         coords = f"{origin.longitude},{origin.latitude};{destination.longitude},{destination.latitude}"
         url = f"{self.base_url}/route/v1/{self.profile}/{coords}?overview=false&steps=false"
         try:
@@ -46,6 +46,7 @@ class OsrmClient:
             route = RouteResult(routes[0]["distance"], routes[0]["duration"], tuple(p["distance"] for p in points))
         except (TransportError, ValueError, TypeError, KeyError, AttributeError, ValidationError) as exc:
             raise RoutingUnavailableError("OSRMの接続または応答が不正です。サーバーと地図を確認してください") from exc
-        if any(d > self.max_snap_distance_m for d in route.snap_distances_m):
+        limits = snap_limits_m or (self.max_snap_distance_m, self.max_snap_distance_m)
+        if any(d > m for d, m in zip(route.snap_distances_m, limits)):
             raise SnapDistanceError("道路へのスナップ距離が上限を超えたため計算を保留しました")
         return route

@@ -15,10 +15,13 @@ from route_estimator.config import load_config
 from route_estimator.customer_repository import CustomerRepository
 from route_estimator.errors import EstimatorError, GeocodingNotPreciseError, GeocodingUnavailableError
 from route_estimator.estimate_service import estimate_trip
-from route_estimator.models import Location, TripRequest
+from route_estimator.models import Location, TripRequest, japan_coordinates
+from route_estimator.errors import ValidationError
 from route_estimator.scheduling import JST, default_departure, departure_label
 from route_estimator.highway_service import HighwayService
 from route_estimator.highway_cui import show_highways, toll_flow
+
+PRECISION_LABEL = {'MANUAL_VERIFIED': '登録済みの緯度経度', 'EXACT_ADDRESS': '番地・号まで一致', 'BLOCK_OR_TOWN': '丁目・町字の代表点', 'CITY_OR_PREF': '市区町村', 'UNRESOLVED': '未確定'}
 
 
 def _choose(prompt, choices, read, write):
@@ -28,11 +31,29 @@ def _choose(prompt, choices, read, write):
         write("表示された選択肢を入力してください。")
 
 
+COORDINATE_INPUT = re.compile(r"\s*(-?\d+(?:\.\d+)?)\s*[,、，\s]\s*(-?\d+(?:\.\d+)?)\s*")
+
+
 def _address(read, write):
     while True:
         value = read("住所 > ").strip()
         if value: return value
         write("住所を入力してください。")
+
+
+def _manual_location(read, write):
+    """住所、または「緯度,経度」（例: 34.6853,135.6013）を受け付ける。"""
+    while True:
+        value = _address(read, write)
+        match = COORDINATE_INPUT.fullmatch(value)
+        if not match:
+            return Location("手入力住所", value)
+        try:
+            coordinates = japan_coordinates(match[1], match[2], "入力")
+        except ValidationError as exc:
+            write(str(exc))
+            continue
+        return Location("手入力座標", f"緯度{coordinates.latitude}, 経度{coordinates.longitude}", coordinates=coordinates)
 
 
 def _search(repository, read, write):
@@ -62,26 +83,26 @@ def _search(repository, read, write):
             except ValueError: index = -1
             if start <= index < min(start + 10, len(candidates)):
                 customer = candidates[index].customer
-                return Location(customer.name, customer.address, customer.code)
+                return Location(customer.name, customer.address, customer.code, coordinates=customer.coordinates)
             write("このページの番号または有効な操作を入力してください。")
 
 
 def _location(origin, settings, repository, read, write):
     while True:
         if origin:
-            write("[From / 出発地]\n1. 自社\n2. 顧客検索\n3. 住所を直接入力")
+            write("[From / 出発地]\n1. 自社\n2. 顧客検索\n3. 住所または緯度経度を直接入力")
             value = _choose("選択 > ", {"1", "2", "3"}, read, write)
             if value == "1": return settings.company
             search = value == "2"
         else:
-            write("[To / 到着地]\n1. 顧客検索\n2. 住所を直接入力")
+            write("[To / 到着地]\n1. 顧客検索\n2. 住所または緯度経度を直接入力")
             value = _choose("選択 > ", {"1", "2"}, read, write)
             search = value == "1"
         if search:
             result = _search(repository, read, write)
             if result is not None: return result
         else:
-            return Location("手入力住所", _address(read, write))
+            return _manual_location(read, write)
 
 
 def _people(default, read, write):
@@ -140,6 +161,8 @@ def _place(prefix, location, write):
     code = f" [{location.customer_code}]" if location.customer_code else ""
     write(f"  {prefix}：{location.label}{code}")
     write(f"    住所：{location.address}")
+    if location.coordinates is not None:
+        write(f"    座標：{location.coordinates.latitude}, {location.coordinates.longitude}（登録済み・住所検索は省略）")
     if location.original_address is not None:
         write(f"  修正前の住所：{location.original_address}（CSVは変更していません）")
 
@@ -186,6 +209,9 @@ def _result(result, write):
     write("")
     write(f"距離：{distance} km")
     write(f"推定移動時間：{minutes // 60}時間{minutes % 60:02d}分")
+    approx = [name for name, geo in (("From", result.origin_geocode), ("To", result.destination_geocode)) if str(geo.precision) == 'BLOCK_OR_TOWN']
+    if approx:
+        write(f"[住所精度] {'・'.join(approx)}は番地が見つからないため、丁目・町字の代表点で計算しています。")
     show_highways(result, write)
     _section("費用内訳", write)
     write(f"移動人件費：{result.labor_cost_yen:,}円")
@@ -211,7 +237,9 @@ def _result(result, write):
     _section("補足 / 住所照合・出典", write)
     for name, geo in (("From", result.origin_geocode), ("To", result.destination_geocode)):
         c = geo.coordinates
-        write(f"[{name}] 住所精度：{geo.precision}")
+        write(f"[{name}] 住所精度：{geo.precision}（{PRECISION_LABEL.get(str(geo.precision), '')}）")
+        if str(geo.precision) == 'BLOCK_OR_TOWN':
+            write("  ※ 番地・号が見つからないため、丁目・町字の代表点で計算しています（数百m程度ずれる場合があります）")
         write(f"  提供元：{geo.provider} / データ版：{geo.dataset_version}")
         write(f"  照合住所：{geo.matched_address}")
         write(f"  緯度：{c.latitude} / 経度：{c.longitude}")

@@ -52,7 +52,7 @@ class GeoapifyClient:
     def close(self):
         for logger in self.loggers:logger.removeFilter(self.secret_filter)
 
-    def route(self,origin:Coordinates,destination:Coordinates)->RouteResult:
+    def route(self,origin:Coordinates,destination:Coordinates,*,snap_limits_m=None)->RouteResult:
         params={'waypoints':f'{origin.latitude},{origin.longitude}|{destination.latitude},{destination.longitude}',
                 'mode':'drive','type':'balanced','traffic':'free_flow','units':'metric','format':'geojson','details':'instruction_details,route_details','lang':'ja','apiKey':self.key}
         try:
@@ -85,6 +85,7 @@ class GeoapifyClient:
         except (TransportError,ValueError,TypeError,KeyError,AttributeError,IndexError,OverflowError,ValidationError):
             # httpxの例外causeにはAPIキー付きURLが入り得る。生の例外/応答は表示しない。
             raise RoutingUnavailableError('Geoapifyへの接続または応答が不正です。見積は未確定です') from None
-        if any(d>self.max_snap_distance_m for d in distances):
+        limits=snap_limits_m or (self.max_snap_distance_m,self.max_snap_distance_m)
+        if any(d>m for d,m in zip(distances,limits)):
             raise SnapDistanceError('入力座標と経路端点の距離が上限を超えたため計算を保留しました')
         return result

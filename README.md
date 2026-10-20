@@ -7,7 +7,7 @@
 ## 主な機能
 
 - 自社・顧客CSVの検索・住所直接入力による出発地／到着地の指定。
-- 番地・号まで照合した住所の座標を使い、距離と所要時間を取得。
+- 番地・号まで照合した住所の座標を使い、距離と所要時間を取得。番地・号が見つからない場合は、見つかった丁目・町字の代表点で計算し、結果に「丁目・町字の代表点」と表示（`config.json` の `geocoding.allow_approximate` を `false` にすると従来どおり番地必須）。市区町村までしか一致しない住所は計算しません。
 - 人数・時間単価・燃費・車両台数・燃料単価に基づく片道移動費の試算。
 - 国土交通省のIC座標データと経路・道路名を照合し、入口／出口ICの候補を表示。
 - ICの確認・修正と車種指定後に、最大3経路のETC2.0参考額・通過IC/JCT・区間距離／時間を表示。
@@ -44,6 +44,16 @@ cd Route_Estimator   # クローンしたフォルダ
 | 通常起動 | `mac/start.command` | `windows\start.bat` |
 
 Geoapifyキーは [Geoapifyの管理画面](https://myprojects.geoapify.com/) で取得し、登録スクリプトへ入力します。キーはリポジトリ直下の `.env`（Git対象外）に `GEOAPIFY_API_KEY=...` の形で保存されます。手動で作る場合は `.env.example` を `.env` にコピーして値を入れてください。`config.json`・`.env.example`・Gitへキーを記載しないでください。`doctor`は外部APIへ送信しない読込確認です。
+
+### 緯度経度で地点を指定する
+
+住所が見つからない地点は、緯度経度を登録すると住所検索を省略してその座標で計算します（結果の住所精度は「登録済みの緯度経度」）。
+
+- **自社**：`config.json` の `company` に `"latitude": 34.6268, "longitude": 135.6013` のように記入（不要なら `null`）。
+- **顧客**：`data/customers.csv` に任意列 `latitude,longitude` を追加（[data/README.md](data/README.md)）。
+- **その場で入力**：From/Toの「住所または緯度経度を直接入力」で `34.6268,135.6013` のように入力。
+
+緯度経度はGoogleマップで地点を右クリックすると表示される「34.xxx, 135.xxx」をそのまま使えます。日本の範囲外（緯度経度の入れ違いなど）は拒否します。
 
 公開地点のデモは `./mac/start.command --demo`（Windowsは `windows\start.bat --demo`）で起動できます。デモでもGeoapifyキーが必要です。
 

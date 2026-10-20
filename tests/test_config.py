@@ -28,7 +28,7 @@ def test_valid_and_path_relative_to_config(tmp_path):
     ("osrm", "profile", "driving/../../"),
     ("osrm", "timeout_seconds", 0),
     ("geocoding", "base_url", "https://evil.example/api/ja"),
-    ("geocoding", "allow_approximate", True),
+    ("geocoding", "allow_approximate", "yes"),
     ("geocoding", "retries", 4),
     ("geocoding", "cache_ttl_days", 0),
 ])

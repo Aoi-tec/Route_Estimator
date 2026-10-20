@@ -42,6 +42,22 @@ def test_missing_and_broken_steps_not_free_route():
     assert extract_highway_details(p,POINTS)['status']=='invalid'
 
 
+def test_toll_omitted_on_free_steps_is_treated_as_free():
+    # Geoapifyは無料区間のstepでtollを省略することがある
+    p=properties()
+    for step in p['legs'][0]['steps']:
+        if step['toll'] is False:step.pop('toll')
+    info=extract_highway_details(p,POINTS)
+    assert info['status']=='available' and len(info['sections'])==1
+    assert info['sections'][0]['roads']==['西名阪自動車道']
+
+
+def test_invalid_reports_reason():
+    p=properties();p['legs'][0]['steps'][1]['from_index']=99
+    info=extract_highway_details(p,POINTS)
+    assert info['status']=='invalid' and info['reason']
+
+
 def test_multiple_highway_sections():
     p=properties();p['legs'][0]['steps'].append({'from_index':3,'to_index':4,'time':50,'toll':True,'road_class':'motorway'})
     p['time']=650

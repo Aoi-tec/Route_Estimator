@@ -7,7 +7,7 @@ import re
 import math
 
 from .errors import ConfigError, ValidationError
-from .models import Location, decimal_value, positive_integer
+from .models import Location, decimal_value, japan_coordinates, positive_integer
 
 GEOLONIA_BASE = "https://japanese-addresses-v2.geoloniamaps.com/api/ja"
 
@@ -85,6 +85,16 @@ def _timeout(value, name):
     return result
 
 
+def _company(company) -> Location:
+    if set(company) - {"name", "address", "latitude", "longitude"}:
+        raise ConfigError("companyに未知の設定があります（name, address, latitude, longitudeのみ）")
+    lat, lon = company.get("latitude"), company.get("longitude")
+    if (lat is None) != (lon is None):
+        raise ConfigError("companyのlatitudeとlongitudeは両方指定するか、両方省略してください")
+    coordinates = None if lat is None else japan_coordinates(lat, lon, "自社")
+    return Location(company["name"], company["address"], coordinates=coordinates)
+
+
 def load_config(path: str | Path) -> AppConfig:
     path = Path(path).resolve()
     try:
@@ -94,8 +104,9 @@ def load_config(path: str | Path) -> AppConfig:
         osrm=data.get('osrm',{'base_url':'http://127.0.0.1:5000','profile':'driving','timeout_seconds':15,'max_snap_distance_m':200})
         if geo["provider"] != "geolonia_v2" or geo["base_url"] != GEOLONIA_BASE:
             raise ConfigError("Geoloniaの接続先は許可済み公式HTTPS URLに限ります")
-        if geo["allow_approximate"] is not False:
-            raise ConfigError("近似住所の承認フローがないためallow_approximateはfalseにしてください")
+        allow_approximate = geo.get("allow_approximate", True)
+        if type(allow_approximate) is not bool:
+            raise ConfigError("allow_approximateはtrue/falseで指定してください（true: 番地が見つからない場合は丁目・町字の代表点で計算）")
         parsed = urlsplit(osrm["base_url"])
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1") or parsed.username or parsed.password or parsed.path not in ("", "/") or parsed.query or parsed.fragment:
             raise ConfigError("OSRM接続先はループバックのHTTP URLが必要です")
@@ -128,11 +139,11 @@ def load_config(path: str | Path) -> AppConfig:
         key_path=Path(key_file)
         if not key_path.is_absolute():key_path=path.parent/key_path
         return AppConfig(
-            Location(company["name"], company["address"]),
+            _company(company),
             LaborConfig(decimal_value(labor["hourly_rate_yen_per_person"], "人件費単価"), positive_integer(labor["default_people"], "標準人数")),
             VehicleConfig(positive_integer(vehicle["count"], "車両台数"), decimal_value(vehicle["fuel_efficiency_km_per_liter"], "燃費", positive=True), None if price is None else decimal_value(price, "燃料単価")),
             OsrmConfig(osrm["base_url"], osrm["profile"], _timeout(osrm["timeout_seconds"], "OSRM timeout"), decimal_value(osrm["max_snap_distance_m"], "スナップ距離上限")),
-            GeocodingConfig(geo["provider"], geo["base_url"], _timeout(geo["timeout_seconds"], "Geolonia timeout"), False, cache_path,
+            GeocodingConfig(geo["provider"], geo["base_url"], _timeout(geo["timeout_seconds"], "Geolonia timeout"), allow_approximate, cache_path,
                 positive_integer(geo.get("cache_ttl_days", 30), "キャッシュ有効日数"), max_bytes, retries),
             RoutingConfig(routing['provider'],_timeout(routing.get('timeout_seconds',15),'経路 timeout'),
                 decimal_value(routing.get('max_snap_distance_m',200),'端点距離上限'),env_name,key_path),

@@ -20,7 +20,7 @@ class FakeGeocoder:
 
 class FakeRouter:
     def __init__(self): self.calls = []
-    def route(self, origin, destination):
+    def route(self, origin, destination, **kwargs):
         self.calls.append((origin, destination))
         return RouteResult(D(120000), D(7200), (D(1), D(2)))
 
@@ -59,3 +59,28 @@ def test_people_override_and_fuel(settings):
     result = estimate_trip(TripRequest(settings.company, settings.company, 3), settings=settings, geocoder=FakeGeocoder(), router=FakeRouter())
     assert result.labor_cost_yen == 18000
     assert result.fuel_cost_yen_or_none == 2040
+
+
+def test_town_point_fallback_widens_snap_limit_only_for_that_end(fallback_settings):
+    class Router:
+        def __init__(self): self.kwargs = None
+        def route(self, origin, destination, **kwargs):
+            self.kwargs = kwargs
+            return RouteResult(D(120000), D(7200), (D(800), D(1)))
+    class Mixed(FakeGeocoder):
+        def geocode(self, address):
+            r = super().geocode(address)
+            return replace(r, precision=Precision.BLOCK_OR_TOWN) if len(self.calls) == 1 else r
+    router = Router()
+    req = TripRequest(fallback_settings.company, fallback_settings.company)
+    result = estimate_trip(req, settings=fallback_settings, geocoder=Mixed(), router=router)
+    assert router.kwargs == {"snap_limits_m": (D(1000), D(200))}
+    assert result.geocode_quality == {"origin": "BLOCK_OR_TOWN", "destination": "EXACT_ADDRESS"}
+
+
+def test_town_point_snap_still_limited(fallback_settings):
+    class Router:
+        def route(self, origin, destination, **kwargs): return RouteResult(D(1), D(1), (D(1001), D(1)))
+    with pytest.raises(SnapDistanceError):
+        estimate_trip(TripRequest(fallback_settings.company, fallback_settings.company), settings=fallback_settings,
+                      geocoder=FakeGeocoder(Precision.BLOCK_OR_TOWN), router=Router())

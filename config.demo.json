@@ -1,7 +1,9 @@
 {
   "company": {
     "name": "大阪市役所（公開地点デモ・単価は仮値）",
-    "address": "大阪府大阪市北区中之島1丁目3-20"
+    "address": "大阪府大阪市北区中之島1丁目3-20",
+    "latitude": null,
+    "longitude": null
   },
   "labor": {
     "hourly_rate_yen_per_person": 3000,
@@ -22,7 +24,7 @@
     "provider": "geolonia_v2",
     "base_url": "https://japanese-addresses-v2.geoloniamaps.com/api/ja",
     "timeout_seconds": 15,
-    "allow_approximate": false,
+    "allow_approximate": true,
     "cache_database": "state/demo_geocode_cache.db",
     "cache_ttl_days": 30,
     "max_download_bytes": 8000000,

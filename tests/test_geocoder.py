@@ -147,3 +147,31 @@ def test_county_alias(tmp_path, settings):
 def test_prefecture_precision(tmp_path, settings):
     geo, _, _ = geocoder(tmp_path, settings)
     with pytest.raises(GeocodingNotPreciseError, match='CITY_OR_PREF'): geo.geocode('大阪府')
+
+
+@pytest.mark.parametrize("address,kwargs", [
+    ("大阪府大阪市北区中之島1丁目98", {}),                     # 番号が存在しない
+    (ADDRESS, {"rows": "1,27,,,\n"}),                          # 番号はあるが座標なし
+    (ADDRESS, {"rows": "1,27,,135.502,34.694\n1,27,,135.503,34.695\n"}),  # 番号が複数一致
+    (ADDRESS, {"range_status": 404}),                            # 番地データなし
+    ("大阪府大阪市北区中之島1丁目", {}),                          # 丁目までの入力
+])
+def test_fallback_to_town_point(tmp_path, fallback_settings, address, kwargs):
+    geo, _, cache = geocoder(tmp_path, fallback_settings, **kwargs)
+    result = geo.geocode(address)
+    assert result.precision == "BLOCK_OR_TOWN"
+    assert (result.coordinates.latitude, result.coordinates.longitude) == (34.69, 135.5)
+    assert result.matched_address == "大阪府大阪市北区中之島一丁目"
+    with sqlite3.connect(cache.path) as db:  # 代表点はキャッシュしない
+        assert db.execute("SELECT COUNT(*) FROM geocodes").fetchone()[0] == 0
+
+
+def test_fallback_still_exact_when_found(tmp_path, fallback_settings):
+    geo, _, _ = geocoder(tmp_path, fallback_settings)
+    assert geo.geocode(ADDRESS).precision == "EXACT_ADDRESS"
+
+
+@pytest.mark.parametrize("address", ["大阪府", "大阪府大阪市北区不明1-2", "不明"])
+def test_fallback_never_uses_city_point(tmp_path, fallback_settings, address):
+    geo, _, _ = geocoder(tmp_path, fallback_settings)
+    with pytest.raises(GeocodingNotPreciseError): geo.geocode(address)

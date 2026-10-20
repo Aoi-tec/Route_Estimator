@@ -109,3 +109,10 @@ def test_geocoding_transport_retry_keeps_inputs(settings):
     assert code == 0 and '通信障害の場合' in text
     assert geo.calls == [settings.company.address, '住所']
     assert len(router.calls) == 1
+
+
+def test_town_point_fallback_is_shown(fallback_settings):
+    code, text, _, router = run(fallback_settings, ["1", "2", "住所", "", "1"], geo=FakeGeocoder("BLOCK_OR_TOWN"))
+    assert code == 0 and len(router.calls) == 1
+    assert "[住所精度] From・Toは番地が見つからないため" in text
+    assert "住所精度：BLOCK_OR_TOWN（丁目・町字の代表点）" in text

@@ -36,11 +36,35 @@ class Coordinates:
                 raise ValidationError(f"{name}が範囲外または不正です")
 
 
+JAPAN_BOUNDS = ((20.0, 46.0), (122.0, 154.0))
+
+
+def japan_coordinates(latitude: object, longitude: object, name: str = "座標") -> "Coordinates":
+    """登録・手入力の緯度経度を検証する。日本の範囲外は緯度経度の入れ違いとみなして拒否。"""
+    lat = float(decimal_or_signed(latitude, f"{name}の緯度"))
+    lon = float(decimal_or_signed(longitude, f"{name}の経度"))
+    (lat_min, lat_max), (lon_min, lon_max) = JAPAN_BOUNDS
+    if not (lat_min <= lat <= lat_max and lon_min <= lon <= lon_max):
+        raise ValidationError(f"{name}の緯度経度が日本の範囲外です（緯度{lat_min}〜{lat_max}・経度{lon_min}〜{lon_max}）。緯度と経度が逆になっていないか確認してください")
+    return Coordinates(lat, lon)
+
+
+def decimal_or_signed(value: object, name: str) -> Decimal:
+    if isinstance(value, str):
+        value = value.strip()
+        try: value = Decimal(value)
+        except (InvalidOperation, ValueError): raise ValidationError(f"{name}は数値で指定してください") from None
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)) or not Decimal(str(value)).is_finite():
+        raise ValidationError(f"{name}は数値で指定してください")
+    return Decimal(str(value))
+
+
 @dataclass(frozen=True)
 class Customer:
     code: str
     name: str
     address: str
+    coordinates: "Coordinates | None" = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +73,7 @@ class Location:
     address: str
     customer_code: str | None = None
     original_address: str | None = None
+    coordinates: Coordinates | None = None  # 登録済みの緯度経度。あれば住所検索を省略
 
     def __post_init__(self):
         if not isinstance(self.label, str) or not self.label.strip() or not isinstance(self.address, str) or not self.address.strip():

@@ -26,6 +26,7 @@ def show_highways(result, write):
     info=result.highway_information
     if info.get('status')!='available':
         write('経路の道路詳細がないため、利用ICを判定できません（通行料金は未取得）。')
+        if info.get('reason'):write(f"  理由：{info['reason']}")
         return
     if not info.get('sections'):
         write('取得した道路属性では、高速・有料道路の利用区間はありません。')

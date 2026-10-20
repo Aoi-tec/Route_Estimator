@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import unicodedata
 
-from .errors import CustomerDataError
-from .models import Customer
+from .errors import CustomerDataError, ValidationError
+from .models import Customer, japan_coordinates
 
 
 REQUIRED_COLUMNS = ("customer_code", "customer_name", "address")
@@ -61,7 +61,16 @@ class CustomerRepository:
                 if key in codes:
                     raise CustomerDataError(f"CSV {line}行目のcustomer_codeが正規化後に重複しています")
                 codes.add(key)
-                customers.append(Customer(code, row[index["customer_name"]], row[index["address"]]))
+                coordinates = None
+                if "latitude" in headers or "longitude" in headers:
+                    lat = row[headers.index("latitude")].strip() if "latitude" in headers else ""
+                    lon = row[headers.index("longitude")].strip() if "longitude" in headers else ""
+                    if bool(lat) != bool(lon):
+                        raise CustomerDataError(f"CSV {line}行目のlatitude/longitudeは両方入力するか、両方空欄にしてください")
+                    if lat:
+                        try: coordinates = japan_coordinates(lat, lon, f"CSV {line}行目")
+                        except ValidationError as exc: raise CustomerDataError(str(exc)) from None
+                customers.append(Customer(code, row[index["customer_name"]], row[index["address"]], coordinates))
         except (OSError, UnicodeError, csv.Error) as exc:
             raise CustomerDataError("顧客CSVを読めません。パス・文字コード（UTF-8推奨）・CSV形式を確認してください") from exc
         return cls(customers)

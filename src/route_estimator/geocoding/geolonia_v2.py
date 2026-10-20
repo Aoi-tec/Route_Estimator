@@ -66,8 +66,8 @@ def _suffix(tail: str, expected: str) -> str | None:
 
 class GeoloniaV2:
     def __init__(self, client: httpx.Client, settings: GeocodingConfig, cache: GeocodeCache):
-        if settings.base_url != GEOLONIA_BASE or settings.allow_approximate:
-            raise ValidationError("許可済みGeolonia接続先・厳密住所モードが必要です")
+        if settings.base_url != GEOLONIA_BASE:
+            raise ValidationError("許可済みGeolonia接続先が必要です")
         self.settings, self.cache = settings, cache
         self.http = HttpTransport(client, timeout=settings.timeout_seconds, retries=settings.retries, max_bytes=settings.max_download_bytes)
 
@@ -111,10 +111,15 @@ class GeoloniaV2:
             result = self._resolve(key)
         except (TransportError, ValueError, TypeError, KeyError, AttributeError, UnicodeError, csv.Error, StopIteration) as exc:
             raise GeocodingUnavailableError("Geoloniaの接続またはデータ形式を確認してください") from exc
-        if result.precision != Precision.EXACT_ADDRESS or result.coordinates is None:
+        if result.coordinates is not None and result.precision == Precision.EXACT_ADDRESS:
+            self.cache.put(key, address, result)
+            return result
+        if result.coordinates is not None and result.precision == Precision.BLOCK_OR_TOWN and self.settings.allow_approximate:
+            # 番地・号が見つからない場合は、見つかった丁目・町字の代表点へフォールバック（キャッシュしない）。
+            return result
+        if result.precision == Precision.BLOCK_OR_TOWN:
             raise GeocodingNotPreciseError(f"住所精度 {result.precision}：番地・号に一致する座標が取得できません。字・大字等の表記を確認し、住所を修正して再試行できます")
-        self.cache.put(key, address, result)
-        return result
+        raise GeocodingNotPreciseError(f"住所精度 {result.precision}：丁目・町字まで一致しません。市区町村以降の表記を確認し、住所を修正して再試行できます")
 
     def _resolve(self, address: str) -> GeoResult:
         base = self.settings.base_url
@@ -191,7 +196,7 @@ class GeoloniaV2:
             if not number: continue
             suffix = _suffix(normalized_tail, number)
             if suffix is not None: hits.append((number, row[3], row[4], suffix))
-        if len(hits) != 1: return low if not hits else result(Precision.UNRESOLVED)
+        if len(hits) != 1: return low  # 番号が見つからない・複数一致は丁目・町字の代表点まで
         number, lng, lat, suffix = hits[0]
         if not lng or not lat: return low
         coordinates = _point([float(lng), float(lat)])
