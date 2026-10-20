@@ -1,0 +1,38 @@
+{
+  "company": {
+    "name": "自社（架空サンプル）",
+    "address": "大阪府○○市○○町1-2-3"
+  },
+  "labor": {
+    "hourly_rate_yen_per_person": 3000,
+    "default_people": 2
+  },
+  "vehicle": {
+    "count": 1,
+    "fuel_efficiency_km_per_liter": 10,
+    "fuel_price_yen_per_liter": null
+  },
+  "osrm": {
+    "base_url": "http://127.0.0.1:5000",
+    "profile": "driving",
+    "timeout_seconds": 15,
+    "max_snap_distance_m": 200
+  },
+  "geocoding": {
+    "provider": "geolonia_v2",
+    "base_url": "https://japanese-addresses-v2.geoloniamaps.com/api/ja",
+    "timeout_seconds": 15,
+    "allow_approximate": false,
+    "cache_database": "state/geocode_cache.db",
+    "cache_ttl_days": 30,
+    "max_download_bytes": 8000000,
+    "retries": 2
+  },
+  "routing": {
+    "provider": "geoapify",
+    "timeout_seconds": 15,
+    "max_snap_distance_m": 200,
+    "api_key_env": "GEOAPIFY_API_KEY",
+    "api_key_file": ".env"
+  }
+}

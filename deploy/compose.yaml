@@ -1,0 +1,20 @@
+name: route-estimator
+services:
+  osrm:
+    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend@sha256:55dbfd47d984c2cacd64e32901b4321c86b5ec761438e69aa053dc78698a786f}
+    container_name: route-estimator-osrm
+    command: >-
+      osrm-routed --algorithm mld --threads ${OSRM_CPUS:-4}
+      --verbosity WARNING ${OSRM_MMAP---mmap=1}
+      /data/${OSRM_DATASET_BASENAME:-japan}.osrm
+    ports:
+      - "127.0.0.1:${OSRM_HOST_PORT:-5000}:5000"
+    volumes:
+      - maps:/data:ro
+    mem_limit: ${OSRM_SERVE_MEMORY:-12g}
+    cpus: ${OSRM_CPUS:-4}
+    restart: unless-stopped
+volumes:
+  maps:
+    external: true
+    name: ${OSRM_MAP_VOLUME:-route-estimator-japan}

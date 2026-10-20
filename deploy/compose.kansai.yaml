@@ -1,0 +1,17 @@
+name: route-estimator
+services:
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend@sha256:55dbfd47d984c2cacd64e32901b4321c86b5ec761438e69aa053dc78698a786f
+    container_name: route-estimator-osrm
+    command: ["osrm-routed", "--algorithm", "mld", "--threads", "4", "--verbosity", "WARNING", "/data/kansai-latest.osrm"]
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - maps:/data:ro
+    mem_limit: 2g
+    cpus: 4
+    restart: unless-stopped
+volumes:
+  maps:
+    external: true
+    name: route-estimator-maps

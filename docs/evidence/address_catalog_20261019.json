@@ -1,0 +1,115 @@
+{
+  "checked_at": "2026-10-19T16:28:47.950344+09:00",
+  "scope": "大阪府の町字/住居表示と大阪市北区の地番のカタログメタデータのみ。原本ZIP未取得。全国の網羅性・CSV互換性は未検証。",
+  "catalog_endpoint": "https://dataset.address-br.digital.go.jp/api/search/v1/collections/all/items",
+  "catalog_modified_unit": "Unix epoch milliseconds; catalog metadata modification, not surveying date",
+  "description_date_meaning": "Provider-declared 最終更新日. Not independently validated as a source reference or coordinate maintenance date.",
+  "queries": [
+    {
+      "q": "町字マスター",
+      "category": "都道府県レベル/大阪府",
+      "numberMatched": 3,
+      "numberReturned": 3
+    },
+    {
+      "q": "住居表示-住居マスター",
+      "category": "都道府県レベル/大阪府",
+      "numberMatched": 4,
+      "numberReturned": 4
+    },
+    {
+      "q": "地番マスター",
+      "category": "都道府県レベル/大阪府",
+      "numberMatched": 0,
+      "numberReturned": 0,
+      "note": "市区町村レベルで探す必要があり、データ不在を意味しない"
+    },
+    {
+      "q": "大阪市北区 地番マスター",
+      "numberMatched": 5,
+      "numberReturned": 5,
+      "selectedResources": 2,
+      "note": "検索結果には堺市北区等も含まれたため、地理的範囲とURL上の自治体コードでも確認した"
+    }
+  ],
+  "resources": [
+    {
+      "id": "11ce1523a8f5465dbcc34a92c38a0b89",
+      "title": "大阪府 町字マスター（フルセット）",
+      "url": "https://data.address-br.digital.go.jp/mt_town_fullset/pref/mt_town_fullset_pref27.csv.zip",
+      "created": 1754774392000,
+      "modified": 1789684514000,
+      "description": "最終更新日: 2026-09-17T07:55:01.000Z"
+    },
+    {
+      "id": "64876aa15ee745eea87e428979cd6305",
+      "title": "大阪府 町字マスター",
+      "url": "https://data.address-br.digital.go.jp/mt_town/pref/mt_town_pref27.csv.zip",
+      "created": 1754768891000,
+      "modified": 1789683607000,
+      "description": "最終更新日: 2026-09-17T07:54:56.000Z"
+    },
+    {
+      "id": "a878eff4c89449f68c3c2bf8998f9ba9",
+      "title": "大阪府 町字マスター位置参照拡張",
+      "url": "https://data.address-br.digital.go.jp/mt_town_pos/pref/mt_town_pos_pref27.csv.zip",
+      "created": 1754768941000,
+      "modified": 1761603764000,
+      "description": "最終更新日: 2025-10-27T10:03:07.000Z"
+    },
+    {
+      "id": "0efd782d4970450dac5549304d6fa094",
+      "title": "大阪府 住居表示-住居マスター位置参照拡張",
+      "url": "https://data.address-br.digital.go.jp/mt_rsdtdsp_rsdt_pos/pref/mt_rsdtdsp_rsdt_pos_pref27.csv.zip",
+      "created": 1754774593000,
+      "modified": 1761604902000,
+      "description": "最終更新日: 2025-10-27T10:15:06.000Z"
+    },
+    {
+      "id": "3c5529ce646d46ed9c8c244c1d95b63c",
+      "title": "大阪府 住居表示-住居マスター",
+      "url": "https://data.address-br.digital.go.jp/mt_rsdtdsp_rsdt/pref/mt_rsdtdsp_rsdt_pref27.csv.zip",
+      "created": 1754774542000,
+      "modified": 1761604833000,
+      "description": "最終更新日: 2025-10-27T10:09:42.000Z"
+    },
+    {
+      "id": "bb8884403f554ce68274f30b70d4628e",
+      "title": "大阪府 住居表示-街区マスター位置参照拡張",
+      "url": "https://data.address-br.digital.go.jp/mt_rsdtdsp_blk_pos/pref/mt_rsdtdsp_blk_pos_pref27.csv.zip",
+      "created": 1754774492000,
+      "modified": 1761604763000,
+      "description": "最終更新日: 2025-10-27T10:03:24.000Z"
+    },
+    {
+      "id": "644f3dd8fb88419b8f974b10da205139",
+      "title": "大阪府 住居表示-街区マスター",
+      "url": "https://data.address-br.digital.go.jp/mt_rsdtdsp_blk/pref/mt_rsdtdsp_blk_pref27.csv.zip",
+      "created": 1754774441000,
+      "modified": 1761604694000,
+      "description": "最終更新日: 2025-10-27T10:03:15.000Z"
+    },
+    {
+      "id": "fd6a88acd15148019ff50582fe5ca3ce",
+      "title": "大阪府 大阪市北区 地番マスター位置参照拡張",
+      "url": "https://data.address-br.digital.go.jp/mt_parcel_pos/city/mt_parcel_pos_city271276.csv.zip",
+      "created": 1754809682000,
+      "modified": 1782257335000,
+      "description": "最終更新日: 2026-06-23T10:33:02.000Z"
+    },
+    {
+      "id": "fa9e0eda067e4c7a91217dd809c14740",
+      "title": "大阪府 大阪市北区 地番マスター",
+      "url": "https://data.address-br.digital.go.jp/mt_parcel/city/mt_parcel_city271276.csv.zip",
+      "created": 1754777346000,
+      "modified": 1772061004000,
+      "description": "最終更新日: 2026-02-25T15:39:33.000Z"
+    }
+  ],
+  "upstream_generator": {
+    "sha": "061f250a2bfaf8e7b0465544c7278cdca86793dc",
+    "date": "2026-09-17T08:45:16Z"
+  },
+  "public_geolonia_meta_updated_observed": 1735102668,
+  "public_geolonia_meta_updated_note": "生成コードはDate.now()を使用。この値だけで原本/座標の更新日を断定しない。"
+}

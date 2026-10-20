@@ -1,0 +1,24 @@
+{
+  "map_name": "japan",
+  "map_url": "https://download.geofabrik.de/asia/japan-latest.osm.pbf",
+  "downloads_directory": "deploy/maps",
+  "venv_directory": ".venv",
+  "image": "ghcr.io/project-osrm/osrm-backend@sha256:55dbfd47d984c2cacd64e32901b4321c86b5ec761438e69aa053dc78698a786f",
+  "cpus": 4,
+  "build_memory_gib": 24,
+  "serve_memory_gib": 12,
+  "docker_memory_reserve_gib": 2,
+  "minimum_free_disk_gib": 80,
+  "host_port": 5000,
+  "validation_port": 5010,
+  "ready_timeout_seconds": 900,
+  "download_timeout_seconds": 14400,
+  "serve_mmap": true,
+  "max_snap_distance_m": 200,
+  "smoke_tests": [
+    {"name": "大阪", "origin": [135.501276687, 34.693870178], "destination": [135.504533435, 34.693508109]},
+    {"name": "東京", "origin": [139.7671, 35.6812], "destination": [139.7684, 35.6750]},
+    {"name": "札幌", "origin": [141.3508, 43.0687], "destination": [141.3545, 43.0618]},
+    {"name": "那覇", "origin": [127.6792, 26.2124], "destination": [127.6859, 26.2161]}
+  ]
+}
