@@ -467,7 +467,7 @@ class Provisioner:
     def start(self):
         self.doctor(strict='serve')
         ready_path=self.state/'ready.json'
-        if not ready_path.exists(): raise SetupError('全国データはまだ前処理/経路検証が完了していません。メモリを調整後にsetup.batを実行してください。既存の近畿サーバーは変更しません')
+        if not ready_path.exists(): raise SetupError('全国データはまだ前処理/経路検証が完了していません。メモリを調整後にwindows\\setup.batを実行してください。既存の近畿サーバーは変更しません')
         record=json.loads(ready_path.read_text(encoding='utf-8'))
         _,descriptor=self.downloaded();identity=build_identity(self.config,descriptor)
         if record['build_id']!=identity: raise SetupError('設定/原本が構築済みデータと違います。buildを実行してください')
@@ -516,7 +516,7 @@ class Provisioner:
 
     def run_cui(self,demo=False):
         python=venv_python(self.config['venv_directory'])
-        if not python.exists(): raise SetupError('venv未作成です。setup.bat --prepare-onlyを実行してください')
+        if not python.exists(): raise SetupError('venv未作成です。windows\\setup.bat / mac/setup.command --prepare-onlyを実行してください')
         config=self.root/('config.demo.json' if demo else 'config.json')
         data=json.loads(config.read_text(encoding='utf-8-sig'))
         expected='http://127.0.0.1:'+str(self.config['host_port'])
@@ -544,7 +544,7 @@ def main(argv=None):
     if args.refresh and args.action not in ('all','prepare','download'):
         parser.error('--refreshは取得を含むall/prepare/downloadで使用してください')
     if args.demo and args.action!='run':
-        parser.error('--demoはstart.bat/start.command(run)で使用してください')
+        parser.error('--demoはwindows\\start.bat / mac/start.command(run)で使用してください')
     try:
         tool=Provisioner(ROOT,args.settings)
         action='prepare' if args.prepare_only and args.action=='all' else args.action
@@ -554,7 +554,7 @@ def main(argv=None):
         provider=json.loads(config_path.read_text(encoding='utf-8-sig')).get('routing',{}).get('provider','osrm') if config_path.exists() else 'osrm'
         if provider not in ('osrm','geoapify'):raise SetupError('routing.providerが不正です')
         if provider=='geoapify' and action in ('start','stop','status'):
-            print('[Geoapify API方式] 常駐サーバーは不要です。start.bat/start.commandでCUIを起動し、doctorでキー読込を確認できます。')
+            print('[Geoapify API方式] 常駐サーバーは不要です。windows\\start.bat / mac/start.commandでCUIを起動し、doctorでキー読込を確認できます。')
             return 0
         if provider=='geoapify' and action=='doctor':
             python=venv_python(tool.config['venv_directory'])

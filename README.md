@@ -25,27 +25,27 @@ ETC2.0料金は1台あたりの参考額として別枠に表示します。Geoa
 
 ## 起動する
 
-通常はフォルダ内の **`start.command`** を実行してください。Windowsでは **`start.bat`** です。
+通常はフォルダ内の **`mac/start.command`** を実行してください。Windowsでは **`windows\start.bat`** です。
 
 端末から起動する場合：
 
 ```sh
 cd Route_Estimator   # クローンしたフォルダ
-./start.command
+./mac/start.command
 ```
 
 初めて導入するPC（`git clone`直後など）では、次の順に実行します。
 
 | 操作 | macOS | Windows |
 | --- | --- | --- |
-| 仮想環境・依存パッケージの準備 | `setup.command` | `setup.bat` |
-| APIキーの登録（非表示入力） | `configure_api_key.command` | `configure_api_key.bat` |
-| 設定・キーの読込確認 | `doctor.command` | `doctor.bat` |
-| 通常起動 | `start.command` | `start.bat` |
+| 仮想環境・依存パッケージの準備 | `mac/setup.command` | `windows\setup.bat` |
+| APIキーの登録（非表示入力） | `mac/configure_api_key.command` | `windows\configure_api_key.bat` |
+| 設定・キーの読込確認 | `mac/doctor.command` | `windows\doctor.bat` |
+| 通常起動 | `mac/start.command` | `windows\start.bat` |
 
 Geoapifyキーは [Geoapifyの管理画面](https://myprojects.geoapify.com/) で取得し、登録スクリプトへ入力します。キーはリポジトリ直下の `.env`（Git対象外）に `GEOAPIFY_API_KEY=...` の形で保存されます。手動で作る場合は `.env.example` を `.env` にコピーして値を入れてください。`config.json`・`.env.example`・Gitへキーを記載しないでください。`doctor`は外部APIへ送信しない読込確認です。
 
-公開地点のデモは `./start.command --demo`（Windowsは `start.bat --demo`）で起動できます。デモでもGeoapifyキーが必要です。
+公開地点のデモは `./mac/start.command --demo`（Windowsは `windows\start.bat --demo`）で起動できます。デモでもGeoapifyキーが必要です。
 
 ## CUIの操作
 
@@ -63,7 +63,9 @@ NEXCOの出発日時には、住所からの出発時刻に入口ICまでのGeoa
 | --- | --- |
 | `config.json` | 使用中の自社住所・人件費単価・燃費・車両台数・燃料単価・API設定 |
 | `config.example.json` | 新規導入用の設定ひな形 |
-| `data/customers.csv` | 使用中の顧客データ。列は `顧客コード,顧客名,住所`（詳細は [data/README.md](data/README.md)） |
+| `data/customers.csv` | 使用中の顧客データ。列は `customer_code,customer_name,address`（UTF-8。詳細は [data/README.md](data/README.md)） |
+| `mac/` / `windows/` | macOS用 `.command`・Windows用 `.bat` の起動ファイル（ダブルクリックで実行） |
+| `scripts/` | 起動ファイルから呼ばれる共通処理（直接実行しない） |
 | `config.demo.json` / `data/customers.demo.csv` | 公開地点デモ用の設定・CSV |
 | `.env` | 利用者のAPIキー（`GEOAPIFY_API_KEY=...`）。環境変数 `GEOAPIFY_API_KEY` があればそちらを優先。ひな形は `.env.example` |
 | `state/` | 住所キャッシュ、IC原本・座標・版・ハッシュなどの実行データ |

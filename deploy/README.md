@@ -4,19 +4,19 @@
 
 ## 入口
 
-Windowsはプロジェクトルートの`prepare.bat`で環境/原本/イメージの準備、`setup.bat`で全国の前処理と起動まで行う。Macでは`./prepare.command` / `./setup.command`。`start`、`stop`、`status`、`doctor`、`build`も用意した。
+Windowsはプロジェクトルートの`windows\prepare.bat`で環境/原本/イメージの準備、`windows\setup.bat`で全国の前処理と起動まで行う。Macでは`./mac/prepare.command` / `./mac/setup.command`。`start`、`stop`、`status`、`doctor`、`build`も用意した。
 
 共通処理は標準ライブラリだけの`deploy/setup.py`。Python仮想環境と依存を自動作成し、既存設定・顧客CSVを上書きしない。調整は`deploy/setup.json`（配布ひな形は`setup.example.json`）。
 
 ```sh
 # Mac。このMacではメモリ割当のため準備までを実施済み。
-./prepare.command
-./status.command
-./doctor.command
+./mac/prepare.command
+./mac/status.command
+./mac/doctor.command
 # Dockerのメモリ/容量を調整した環境で実行
-./setup.command
-./start.command --demo
-./stop.command
+./mac/setup.command
+./mac/start.command --demo
+./mac/stop.command
 ```
 
 ## Docker構成

@@ -6,7 +6,7 @@ IC自動候補・ETC2.0参考額の取得を追加しました。経路計算後
 
 ## 1. 初回導入
 
-Windowsは`setup.bat`、Macは`setup.command`を実行します。Python 3.12以上と`.venv`・依存パッケージを準備します。WindowsでPythonがなければwingetで導入を試みます。MacでPythonがない場合は https://www.python.org/downloads/ から導入してください。既存のconfig/顧客CSVを勝手に上書きしません。新規配布のconfig.example.jsonはGeoapify方式です。
+Windowsは`windows\setup.bat`、Macは`mac/setup.command`を実行します。Python 3.12以上と`.venv`・依存パッケージを準備します。WindowsでPythonがなければwingetで導入を試みます。MacでPythonがない場合は https://www.python.org/downloads/ から導入してください。既存のconfig/顧客CSVを勝手に上書きしません。新規配布のconfig.example.jsonはGeoapify方式です。
 
 旧configを使う場合は`routing`をconfig.example.jsonから追加し、`provider`を`geoapify`にしてください。routing省略の旧configはOSRM方式として動きます。
 
@@ -14,7 +14,7 @@ Windowsは`setup.bat`、Macは`setup.command`を実行します。Python 3.12以
 
 1. https://myprojects.geoapify.com/ で本人のアカウントを登録します。登録時の規約を本人が確認します。
 2. FreeプランでProjectを作り、API Keysでキーを取得します。無料枠は https://www.geoapify.com/pricing/ を参照してください。アプリからプラン変更はしません。
-3. Windowsは`configure_api_key.bat`、Macは`configure_api_key.command`を実行します。
+3. Windowsは`windows\configure_api_key.bat`、Macは`mac/configure_api_key.command`を実行します。
 4. キーを端末の入力欄へ貼り付けてEnterを押します。文字は表示されません。チャットやconfig.jsonにはキーを貼り付けません。
 
 キーはリポジトリ直下の`.env`（Git対象外）に`GEOAPIFY_API_KEY=...`の形で保存します。`.env`の他の行は保持します。旧版の`state/geoapify_api_key.txt`は`.env`が無い場合のみ読み込みます。Mac/Linuxではファイルを0600で作成します。Windowsではユーザー用フォルダのアクセス権を引き継ぎます。別PCへの配布には含めず、そのPCで登録します。GEOAPIFY_API_KEY環境変数があればファイルより優先されます。キーをコマンド引数へ指定する機能はありません。
@@ -23,16 +23,16 @@ Windowsは`setup.bat`、Macは`setup.command`を実行します。Python 3.12以
 
 ## 3. 設定確認・起動
 
-Windowsは`doctor.bat`、Macは`doctor.command`で設定とキー読込を確認できます。これは外部APIへ送信せず、キーの有効性をAPI側で確認する検査ではありません。
+Windowsは`windows\doctor.bat`、Macは`mac/doctor.command`で設定とキー読込を確認できます。これは外部APIへ送信せず、キーの有効性をAPI側で確認する検査ではありません。
 
-通常起動は`start.bat` / `start.command`です。公開地点のデモを使う場合は、端末から次のように起動します。
+通常起動は`windows\start.bat` / `mac/start.command`です。公開地点のデモを使う場合は、端末から次のように起動します。
 
 ```sh
-./start.command --demo
+./mac/start.command --demo
 ```
 
 ```bat
-start.bat --demo
+windows\start.bat --demo
 ```
 
 公開デモは大阪市役所→大阪市中央公会堂。顧客検索・From/To修正・人数指定を行い、確認後に計算します。デモでも本人のAPIキーが必要です。初回起動時のconfig.jsonとdata/customers.csvは架空サンプルなので、通常利用前に自社住所・単価・顧客情報を設定してください。
@@ -61,7 +61,7 @@ APIへ送信するのは出発地・目的地の座標と経路条件です。�
 
 2026-10-20、API方式で使用しない全国/近畿道路PBFとその取得情報、過去の実行ログ・試算JSON・メモリ測定ファイル、旧OSRMのbuild/download/start_serverランチャーとデモ設定を削除しました。API用の設定・キー・顧客CSV・IC原本/座標・仮想環境は維持しています。
 
-setup.command/start.commandは引き続きdeploy/setup.pyを使うため、deploy/setup.jsonとsetup.example.jsonは必要です。削除しないでください。Dockerコンテナ・volumeはこの整理では変更していません。旧OSRM互換コードと試験は保持していますが、地図の再取得・構築は別途準備が必要です。
+mac/setup.command/start.commandは引き続きdeploy/setup.pyを使うため、deploy/setup.jsonとsetup.example.jsonは必要です。削除しないでください。Dockerコンテナ・volumeはこの整理では変更していません。旧OSRM互換コードと試験は保持していますが、地図の再取得・構築は別途準備が必要です。
 
 
 ## 8. 検証境界

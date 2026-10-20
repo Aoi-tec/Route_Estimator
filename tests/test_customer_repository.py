@@ -23,19 +23,19 @@ def test_search_ranking_unicode_and_duplicate_names():
 
 def test_bom_and_leading_zero(tmp_path):
     path = tmp_path / "customers.csv"
-    path.write_text("顧客コード,顧客名,住所\n001,同じ社名,住所A\n002,同じ社名,住所B\n", encoding="utf-8-sig")
+    path.write_text("customer_code,customer_name,address\n001,同じ社名,住所A\n002,同じ社名,住所B\n", encoding="utf-8-sig")
     rows = CustomerRepository.from_csv(path).search("同じ")
     assert [r.customer.code for r in rows] == ["001", "002"]
     assert "住所A" in rows[0].display
 
 
 @pytest.mark.parametrize("contents", [
-    "顧客コード,顧客名\n001,社名\n",
-    "顧客コード,顧客名,住所\n001,,住所\n",
-    "顧客コード,顧客名,住所\n001,社名,住所\n001,社名2,住所2\n",
-    "顧客コード,顧客名,住所\n００１,社名,住所\n001,社名2,住所2\n",
-    "顧客コード,顧客名,住所\n001,社名,住所,余分\n",
-    "顧客コード,顧客名,住所\n001,社名\n",
+    "customer_code,customer_name\n001,社名\n",
+    "customer_code,customer_name,address\n001,,住所\n",
+    "customer_code,customer_name,address\n001,社名,住所\n001,社名2,住所2\n",
+    "customer_code,customer_name,address\n００１,社名,住所\n001,社名2,住所2\n",
+    "customer_code,customer_name,address\n001,社名,住所,余分\n",
+    "customer_code,customer_name,address\n001,社名\n",
 ])
 def test_bad_csv(tmp_path, contents):
     path = tmp_path / "bad.csv"
@@ -49,3 +49,17 @@ def test_shared_fixture_yamada():
     rows = CustomerRepository.from_csv(Path(__file__).parent / "fixtures/customers.csv").search("山田")
     assert len(rows) == 3
     assert {r.customer.code for r in rows} == {"C001", "C002", "0003"}
+
+
+def test_utf16_tab_and_header_case(tmp_path):
+    path = tmp_path / "customers.csv"
+    path.write_text("Customer_Code\tcustomer_name\taddress\tmemo\r\n001\t山田商店\t大阪府A\t備考\r\n\r\n", encoding="utf-16")
+    rows = CustomerRepository.from_csv(path).search("山田")
+    assert [(r.customer.code, r.customer.address) for r in rows] == [("001", "大阪府A")]
+
+
+def test_old_japanese_headers_are_rejected_with_hint(tmp_path):
+    path = tmp_path / "customers.csv"
+    path.write_text("顧客コード,顧客名,住所\n001,社名,住所\n", encoding="utf-8")
+    with pytest.raises(CustomerDataError, match="customer_code"):
+        CustomerRepository.from_csv(path)
